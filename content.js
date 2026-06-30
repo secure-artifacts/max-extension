@@ -13,14 +13,63 @@
   const CALIB_KEY = "max_attendance_calib";
   const CURRENT_KEY = "max_attendance_current";
   const UI_KEY = "max_call_ui";
+  const OPTIONS_KEY = "max_attendance_options";
+  const DEFAULT_OPTIONS = {
+    maxSessions: 200,
+    retentionDays: 90,
+    customSelectors: [],
+    debugMode: false,
+    scanIntervalMs: 3000
+  };
 
   const GRACE_MS = 8000;
-  const SCAN_MS = 2000;
+  const SCAN_MS = 3000;
   const MISS_SCANS = 2;
   const MIN_SESSION_MS = 3000;
-  const MAX_SESSIONS = 200;
   const PERSIST_MS = 5000;
   const NET_TTL_MS = 20000;
+
+  let options = Object.assign({}, DEFAULT_OPTIONS);
+  let domDirty = true;
+  let domObserver = null;
+
+  function loadOptions(cb) {
+    chrome.storage.local.get(OPTIONS_KEY, function (d) {
+      options = Object.assign({}, DEFAULT_OPTIONS, d[OPTIONS_KEY] || {});
+      try {
+        if (options.debugMode) localStorage.setItem("maxct_debug", "1");
+        else localStorage.removeItem("maxct_debug");
+      } catch (e) {}
+      if (cb) cb();
+    });
+  }
+  loadOptions();
+  chrome.storage.onChanged.addListener(function (changes, area) {
+    if (area !== "local" || !changes[OPTIONS_KEY]) return;
+    options = Object.assign({}, DEFAULT_OPTIONS, changes[OPTIONS_KEY].newValue || {});
+    try {
+      if (options.debugMode) localStorage.setItem("maxct_debug", "1");
+      else localStorage.removeItem("maxct_debug");
+    } catch (e) {}
+  });
+
+  function debugLog() {
+    if (!options.debugMode) return;
+    try { console.log.apply(console, ["[MAXCT]"].concat(Array.prototype.slice.call(arguments))); } catch (e) {}
+  }
+
+  function startDomObserver() {
+    if (domObserver) return;
+    domObserver = new MutationObserver(function () { domDirty = true; });
+    try {
+      domObserver.observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true
+      });
+    } catch (e) { debugLog("MutationObserver failed", e); }
+  }
+  function stopDomObserver() {
+    if (domObserver) { domObserver.disconnect(); domObserver = null; }
+  }
 
   (function injectPageScript() {
     try {
@@ -68,8 +117,11 @@
     };
     clearGrace();
     ui.setRunning(true, by);
+    domDirty = true;
+    startDomObserver();
     scanNow();
-    scanTimer = setInterval(scanNow, SCAN_MS);
+    const interval = options.scanIntervalMs || SCAN_MS;
+    scanTimer = setInterval(scanNow, interval);
     tickTimer = setInterval(tick, 1000);
     persistTimer = setInterval(function () { persistSession(false); }, PERSIST_MS);
     writeCurrent();
@@ -95,6 +147,7 @@
   function stopTimers() {
     [scanTimer, tickTimer, persistTimer].forEach(function (t) { if (t) clearInterval(t); });
     scanTimer = tickTimer = persistTimer = null;
+    stopDomObserver();
   }
 
   function scheduleGrace() {
@@ -318,6 +371,53 @@
     return present.size ? present : null;
   }
 
+  function customSelectorScan() {
+    const selectors = (options.customSelectors || []).filter(function (s) { return s && s.trim(); });
+    if (!selectors.length) return null;
+    const overlayRoot = document.getElementById("maxct-overlay");
+    const present = new Map();
+    selectors.forEach(function (sel) {
+      try {
+        const nodes = document.querySelectorAll(sel.trim());
+        for (let i = 0; i < nodes.length; i++) {
+          const el = nodes[i];
+          if (overlayRoot && overlayRoot.contains(el)) continue;
+          if (!isVisible(el)) continue;
+          const uid = extractUserIdFromElement(el);
+          if (!uid) continue;
+          const nm = firstLine(el);
+          present.set(uid, { name: (nm && looksName(nm)) ? nm : uid });
+        }
+      } catch (e) { debugLog("customSelectorScan error", sel, e); }
+    });
+    return present.size ? present : null;
+  }
+
+  function mergeParticipantMaps(sourceList) {
+    const merged = new Map();
+    let primary = "";
+    sourceList.sort(function (a, b) { return b.weight - a.weight; });
+    sourceList.forEach(function (src) {
+      if (!src.map || !src.map.size) return;
+      if (!primary) primary = src.label;
+      src.map.forEach(function (info, id) {
+        if (!merged.has(id)) {
+          merged.set(id, { name: info.name || id, weight: src.weight });
+        } else {
+          const cur = merged.get(id);
+          if (src.weight >= cur.weight && info.name && info.name !== id) {
+            cur.name = info.name;
+            cur.weight = src.weight;
+          }
+        }
+      });
+    });
+    const labels = sourceList.filter(function (s) { return s.map && s.map.size; }).map(function (s) { return s.label; });
+    let srcLabel = primary || "—";
+    if (labels.length > 1) srcLabel = "融合·" + labels.slice(0, 2).join("+");
+    return { map: merged.size ? merged : null, label: merged.size ? srcLabel : "未识别到用户 ID" };
+  }
+
   // ---- scan / reconcile -------------------------------------------------
   function netFresh() {
     return now() - netTs < NET_TTL_MS && netParticipants.length > 0;
@@ -325,27 +425,32 @@
 
   function scanNow() {
     if (!running) return;
-    let present = null, src = "—";
-
-    // 优先：网络数据（含真实 userId）
+    const sources = [];
     if (netFresh()) {
-      present = participantsMapFromNet(netParticipants);
-      if (present.size) src = "自动·网络·ID";
+      sources.push({
+        map: participantsMapFromNet(netParticipants),
+        weight: 3, label: "网络·ID"
+      });
     }
-    if (!present || !present.size) {
-      const s = autoDomScan();
-      if (s && s.size) { present = s; src = "自动·页面·ID"; }
-    }
-    if (!present || !present.size) {
+    if (domDirty || !netFresh()) {
+      const custom = customSelectorScan();
+      if (custom && custom.size) sources.push({ map: custom, weight: 2.5, label: "规则·ID" });
       if (calib) {
-        const s = calibScan();
-        if (s && s.size) { present = s; src = "校准·ID"; }
+        const c = calibScan();
+        if (c && c.size) sources.push({ map: c, weight: 2, label: "校准·ID" });
       }
+      const dom = autoDomScan();
+      if (dom && dom.size) sources.push({ map: dom, weight: 2, label: "页面·ID" });
     }
-
-    if (present && present.size) { reconcile(present); curSource = src; }
-    else curSource = "未识别到用户 ID";
-
+    const fused = mergeParticipantMaps(sources);
+    if (fused.map && fused.map.size) {
+      reconcile(fused.map);
+      curSource = fused.label;
+      debugLog("scan", curSource, fused.map.size, "participants");
+    } else {
+      curSource = fused.label;
+    }
+    domDirty = false;
     ui.renderPeople(livePeople(), now() - session.start, curSource);
   }
 
@@ -356,11 +461,12 @@
       if (!p) {
         p = session.people[userId] = {
           userId: userId, name: info.name || userId,
+          nameLocked: false, note: "",
           firstSeen: t, lastSeen: t, totalMs: 0,
           online: true, curJoin: t, miss: 0, intervals: []
         };
       } else {
-        if (info.name && info.name !== userId) p.name = info.name;
+        if (info.name && info.name !== userId && !p.nameLocked) p.name = info.name;
         if (!p.online) { p.online = true; p.curJoin = t; }
         p.miss = 0; p.lastSeen = t;
       }
@@ -417,7 +523,8 @@
         if (finalize) { intervals.push({ join: p.curJoin, leave: t }); online = false; }
       }
       return {
-        userId: userId, name: p.name || userId, totalMs: total,
+        userId: userId, name: p.name || userId, note: p.note || "",
+        nameLocked: !!p.nameLocked, totalMs: total,
         online: online && !finalize,
         firstSeen: p.firstSeen, lastSeen: p.lastSeen, intervals: intervals
       };
@@ -427,6 +534,17 @@
       url: session.url, title: session.title, people: people
     };
   }
+  function pruneSessionsList(list) {
+    let out = list.slice();
+    const days = options.retentionDays | 0;
+    if (days > 0) {
+      const cut = now() - days * 86400000;
+      out = out.filter(function (s) { return (s.start || 0) >= cut; });
+    }
+    const max = options.maxSessions | 0;
+    if (max > 0 && out.length > max) out.length = max;
+    return out;
+  }
   function persistSession(finalize) {
     if (!session) return;
     const rec = serialize(finalize);
@@ -434,7 +552,7 @@
       let list = Array.isArray(d[SESSIONS_KEY]) ? d[SESSIONS_KEY] : [];
       const idx = list.findIndex(function (s) { return s.id === rec.id; });
       if (idx >= 0) list[idx] = rec; else list.unshift(rec);
-      if (list.length > MAX_SESSIONS) list.length = MAX_SESSIONS;
+      list = pruneSessionsList(list);
       chrome.storage.local.set({ [SESSIONS_KEY]: list });
     });
   }
@@ -496,22 +614,57 @@
   // ---- calibration picker (optional) -----------------------------------
   const picker = (function () {
     let active = false;
+    let highlightEl = null;
+    function ensureHighlight() {
+      if (!highlightEl) {
+        highlightEl = document.createElement("div");
+        highlightEl.id = "maxct-pick-highlight";
+        document.documentElement.appendChild(highlightEl);
+      }
+      return highlightEl;
+    }
+    function hideHighlight() {
+      if (highlightEl) highlightEl.style.display = "none";
+    }
     function start() {
       if (active) return;
       active = true;
       document.documentElement.style.cursor = "crosshair";
       ui.setPickMode(true);
       document.addEventListener("click", onClick, true);
+      document.addEventListener("mousemove", onMove, true);
       document.addEventListener("keydown", onKey, true);
+      ui.setTip("步骤 1/2：鼠标移到参会者卡片上，绿色框表示已检测到 userId");
     }
     function stop() {
       active = false;
       document.documentElement.style.cursor = "";
+      hideHighlight();
       ui.setPickMode(false);
       document.removeEventListener("click", onClick, true);
+      document.removeEventListener("mousemove", onMove, true);
       document.removeEventListener("keydown", onKey, true);
     }
     function onKey(e) { if (e.key === "Escape") { e.preventDefault(); stop(); } }
+    function onMove(e) {
+      const overlayRoot = document.getElementById("maxct-overlay");
+      if (overlayRoot && overlayRoot.contains(e.target)) { hideHighlight(); return; }
+      const tile = computeTile(e.target);
+      const uid = extractUserIdFromElement(tile);
+      const h = ensureHighlight();
+      if (uid && isVisible(tile)) {
+        const r = tile.getBoundingClientRect();
+        h.style.display = "block";
+        h.style.left = r.left + "px";
+        h.style.top = r.top + "px";
+        h.style.width = r.width + "px";
+        h.style.height = r.height + "px";
+        ui.setTip("步骤 2/2：点击确认（userId: " + uid + "）· Esc 取消");
+      } else {
+        hideHighlight();
+        ui.setTip("步骤 1/2：移到带 data-user-id 的参会者元素上");
+      }
+    }
     function onClick(e) {
       const overlayRoot = document.getElementById("maxct-overlay");
       if (overlayRoot && overlayRoot.contains(e.target)) return;
@@ -519,6 +672,11 @@
       e.stopPropagation();
       const clicked = e.target;
       const tile = computeTile(clicked);
+      const uid = extractUserIdFromElement(tile);
+      if (!uid) {
+        ui.setTip("此处未检测到 userId，请换更靠近参会者卡片的位置。");
+        return;
+      }
       const namePath = pathFromTo(tile, clicked) || [];
       calib = { tileTag: tile.tagName, tileClasses: classTokens(tile), namePath: namePath };
       saveCalib();
@@ -696,7 +854,7 @@
       } catch (_) {}
     }
     function makeDraggable(el, handle) {
-      let sx = 0, sy = 0, ox = 0, oy = 0, drag = false;
+      let sx = 0, sy = 0, ox = 0, oy = 0, drag = false, raf = 0, lx = 0, ly = 0;
       handle.addEventListener("mousedown", function (e) {
         if (e.target.classList.contains("maxct-mini")) return;
         drag = true;
@@ -706,10 +864,17 @@
       });
       addEventListener("mousemove", function (e) {
         if (!drag) return;
-        el.style.left = Math.max(0, Math.min(ox + e.clientX - sx, innerWidth - 60)) + "px";
-        el.style.top = Math.max(0, Math.min(oy + e.clientY - sy, innerHeight - 30)) + "px";
+        lx = e.clientX; ly = e.clientY;
+        if (raf) return;
+        raf = requestAnimationFrame(function () {
+          raf = 0;
+          el.style.left = Math.max(0, Math.min(ox + lx - sx, innerWidth - 60)) + "px";
+          el.style.top = Math.max(0, Math.min(oy + ly - sy, innerHeight - 30)) + "px";
+        });
       });
-      addEventListener("mouseup", function () { if (drag) { drag = false; saveUi(); } });
+      addEventListener("mouseup", function () {
+        if (drag) { drag = false; if (raf) cancelAnimationFrame(raf); raf = 0; saveUi(); }
+      });
     }
 
     if (document.documentElement) build();
@@ -730,6 +895,8 @@
     else if (msg.cmd === "clear-calib") picker.clear();
     else if (msg.cmd === "toggle-timer") {
       if (running) endSession(true); else startSession("manual");
+    } else if (msg.cmd === "get-options") {
+      sendResponse({ options: options });
     }
     return true;
   });

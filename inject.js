@@ -20,6 +20,10 @@
       return false;
     }
   }
+  function debugErr(ctx, err) {
+    if (!debugOn()) return;
+    try { console.warn("[MAXCT:" + ctx + "]", err && err.message ? err.message : err); } catch (_) {}
+  }
 
   // ====================================================================
   // 1) WebRTC: detect when a call is connected.
@@ -236,7 +240,7 @@
         console.log("[MAXCT:" + src + "]", JSON.stringify(obj).slice(0, 1500));
       } catch (_) {}
     }
-    try { ingest(obj, 0); } catch (_) {}
+    try { ingest(obj, 0); } catch (e) { debugErr("ingest", e); }
   }
 
   // Emit registry changes (debounced) to the content script.

@@ -76,6 +76,24 @@ body {
 .empty { color: #828bab; font-size: 12px; text-align: center; padding: 28px 16px; line-height: 1.7; }
 
 .ftr { padding: 10px 16px; font-size: 10px; color: #6f7894; background: #161a26; text-align: center; }
+.ftr a { color: #8fb0ff; text-decoration: none; }
+
+.settings-panel { margin: 0 10px 8px; background: #161a26; border-radius: 10px; }
+.settings-panel summary {
+  padding: 10px 12px; cursor: pointer; font-size: 12px; font-weight: 600; color: #c4cbe4;
+}
+.settings-body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #97a0bd; }
+.field input[type="number"], .field textarea {
+  padding: 6px 8px; border-radius: 6px; border: 1px solid #313a55;
+  background: #11141d; color: #eef1fb; font-size: 12px;
+}
+.field-check { flex-direction: row; align-items: center; gap: 8px; }
+.field-full textarea { resize: vertical; min-height: 56px; font-family: Consolas, monospace; }
+.save-settings { align-self: flex-start; margin-top: 4px; }
+.settings-hint { font-size: 10px; color: #6f7894; line-height: 1.5; margin: 0; }
+.pname { cursor: pointer; }
+.pname:hover { text-decoration: underline; }
 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: #2a3147; border-radius: 4px; }

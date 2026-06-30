@@ -1,4 +1,14 @@
-#maxct-overlay {
+#maxct-pick-highlight {
+  position: fixed;
+  z-index: 2147483646;
+  pointer-events: none;
+  display: none;
+  border: 2px solid #36d399;
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px rgba(54, 211, 153, 0.35), inset 0 0 12px rgba(54, 211, 153, 0.15);
+  background: rgba(54, 211, 153, 0.08);
+}
+
   position: fixed;
   top: 16px;
   right: 16px;

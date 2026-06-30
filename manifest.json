@@ -1,16 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "MAX 通话计时器",
-  "version": "1.1.0",
-  "description": "在 MAX 网页版自动记录每个参会者的上线/下线时间和在线时长，支持悬浮窗、历史记录与导出。",
+  "name": "MAX 出勤记录器",
+  "version": "1.2.0",
+  "description": "在 MAX 网页版按用户 ID 自动记录参会者上线/下线与在线时长，支持悬浮窗、历史记录与导出。",
   "permissions": ["storage"],
   "host_permissions": [
     "https://max.ru/*",
-    "https://*.max.ru/*"
+    "https://*.max.ru/*",
+    "https://web.max.ru/*"
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "MAX 通话计时器",
+    "default_title": "MAX 出勤记录器",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -29,7 +30,8 @@
     {
       "matches": [
         "https://max.ru/*",
-        "https://*.max.ru/*"
+        "https://*.max.ru/*",
+        "https://web.max.ru/*"
       ],
       "js": ["content.js"],
       "css": ["overlay.css"],
@@ -42,7 +44,8 @@
       "resources": ["inject.js"],
       "matches": [
         "https://max.ru/*",
-        "https://*.max.ru/*"
+        "https://*.max.ru/*",
+        "https://web.max.ru/*"
       ]
     }
   ]
