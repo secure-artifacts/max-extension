@@ -1,0 +1,128 @@
+#maxct-overlay {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  width: 234px;
+  font-family: -apple-system, "Segoe UI", Roboto, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  color: #f5f7ff;
+  background: rgba(20, 24, 36, 0.95);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(120, 140, 255, 0.25);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  user-select: none;
+  overflow: hidden;
+}
+
+#maxct-overlay .maxct-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  cursor: move;
+  background: rgba(79, 124, 255, 0.16);
+}
+
+#maxct-overlay .maxct-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #7a8499; flex: 0 0 auto;
+}
+#maxct-overlay .maxct-dot.on {
+  background: #36d399; box-shadow: 0 0 8px #36d399;
+  animation: maxct-pulse 1.4s infinite;
+}
+@keyframes maxct-pulse { 0%,100%{opacity:1;} 50%{opacity:.45;} }
+
+#maxct-overlay .maxct-title { font-size: 12px; font-weight: 600; }
+#maxct-overlay .maxct-spacer { flex: 1 1 auto; }
+
+#maxct-overlay .maxct-mini {
+  width: 20px; height: 20px; line-height: 18px; padding: 0;
+  font-size: 14px; color: #cdd4e8; background: transparent;
+  border: none; border-radius: 6px; cursor: pointer;
+}
+#maxct-overlay .maxct-mini:hover { background: rgba(255,255,255,.12); }
+
+#maxct-overlay .maxct-body { padding: 8px 10px 10px; }
+
+#maxct-overlay .maxct-meta {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 6px;
+}
+#maxct-overlay #maxct-status { font-size: 11px; color: #aab3cc; }
+#maxct-overlay .maxct-calltime {
+  font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: #cfe0ff;
+}
+
+#maxct-overlay .maxct-countbar {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 600; color: #8fb0ff;
+  padding: 4px 8px; background: rgba(79,124,255,.12);
+  border-radius: 6px; margin-bottom: 6px;
+}
+#maxct-overlay .maxct-src {
+  font-size: 10px; font-weight: 600; color: #9aa3bf;
+  background: rgba(255,255,255,.06); padding: 1px 7px; border-radius: 8px;
+}
+
+#maxct-overlay .maxct-list {
+  max-height: 230px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+}
+
+#maxct-overlay .maxct-row {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 6px; border-radius: 6px;
+  background: rgba(255,255,255,.03);
+}
+#maxct-overlay .maxct-row.on { background: rgba(54,211,153,.10); }
+
+#maxct-overlay .maxct-rdot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #6b7491; flex: 0 0 auto;
+}
+#maxct-overlay .maxct-row.on .maxct-rdot {
+  background: #36d399; box-shadow: 0 0 6px #36d399;
+}
+
+#maxct-overlay .maxct-rname {
+  flex: 1 1 auto; font-size: 12px; color: #e6ebff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#maxct-overlay .maxct-row:not(.on) .maxct-rname { color: #9aa3bf; }
+
+#maxct-overlay .maxct-rtime {
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  color: #6fd0a8; flex: 0 0 auto;
+}
+#maxct-overlay .maxct-row:not(.on) .maxct-rtime { color: #7f88a5; }
+
+#maxct-overlay .maxct-empty {
+  font-size: 11px; color: #828bab; text-align: center; padding: 14px 4px;
+}
+
+#maxct-overlay .maxct-actions { display: flex; gap: 8px; margin-top: 8px; }
+#maxct-overlay .maxct-btn {
+  flex: 1 1 0; padding: 7px 0; font-size: 12px; font-weight: 600;
+  color: #e6ebff; background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12); border-radius: 8px; cursor: pointer;
+  transition: background .15s;
+}
+#maxct-overlay .maxct-btn:hover { background: rgba(255,255,255,.16); }
+#maxct-overlay .maxct-primary { background: #4f7cff; border-color: #4f7cff; color: #fff; }
+#maxct-overlay .maxct-primary:hover { background: #6a90ff; }
+#maxct-overlay .maxct-danger { background: #ef4d6a; border-color: #ef4d6a; color: #fff; }
+#maxct-overlay .maxct-danger:hover { background: #ff647e; }
+#maxct-overlay .maxct-warn { background: #f0a132; border-color: #f0a132; color: #1c1206; font-size: 11px; }
+
+#maxct-overlay .maxct-tip {
+  display: none; margin-top: 8px; font-size: 10.5px; line-height: 1.5;
+  color: #d8c08a; background: rgba(240,161,50,.10);
+  border: 1px solid rgba(240,161,50,.25); border-radius: 6px; padding: 6px 8px;
+}
+
+#maxct-overlay ::-webkit-scrollbar { width: 7px; }
+#maxct-overlay ::-webkit-scrollbar-thumb { background: #2a3147; border-radius: 4px; }

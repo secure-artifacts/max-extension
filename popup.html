@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>MAX 出勤记录</title>
+  </head>
+  <body>
+    <header class="hdr">
+      <div class="hdr-left">
+        <img src="icons/icon48.png" alt="" class="logo" />
+        <div>
+          <div class="hdr-title">MAX 出勤记录</div>
+          <div class="hdr-sub" id="liveStatus">空闲</div>
+        </div>
+      </div>
+      <div class="live-time" id="liveTime">00:00</div>
+    </header>
+
+    <section class="stats">
+      <div class="stat">
+        <div class="stat-num" id="statSessions">0</div>
+        <div class="stat-label">通话场次</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="statOnline">0</div>
+        <div class="stat-label">当前在线</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="statPeople">0</div>
+        <div class="stat-label">累计人次</div>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <span class="toolbar-title">通话记录</span>
+      <div class="toolbar-btns">
+        <button id="calibBtn" class="tbtn">校准</button>
+        <button id="exportBtn" class="tbtn">导出CSV</button>
+        <button id="clearBtn" class="tbtn danger">清空</button>
+      </div>
+    </div>
+
+    <div class="sessions" id="sessions">
+      <div class="empty" id="emptyHint">
+        暂无记录。<br />打开 MAX 网页版加入通话后，点击悬浮窗的「校准名单」并点一位参会者，即可自动记录每个人的在线时长。
+      </div>
+    </div>
+
+    <footer class="ftr">
+      <span>数据仅保存在本机浏览器，不会上传</span>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

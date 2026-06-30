@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "MAX 通话计时器",
+  "version": "1.0.0",
+  "description": "在 MAX 网页版自动检测并记录通话时长，支持悬浮计时器、历史记录与导出。",
+  "default_locale": "zh_CN",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://max.ru/*",
+    "https://*.max.ru/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MAX 通话计时器",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://max.ru/*",
+        "https://*.max.ru/*"
+      ],
+      "js": ["content.js"],
+      "css": ["overlay.css"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js"],
+      "matches": [
+        "https://max.ru/*",
+        "https://*.max.ru/*"
+      ]
+    }
+  ]
+}

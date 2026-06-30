@@ -1,0 +1,21 @@
+# 依赖与构建产物
+node_modules/
+dist/
+*.zip
+
+# 环境变量与密钥（严禁提交）
+.env
+.env.*
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
