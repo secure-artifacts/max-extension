@@ -44,7 +44,7 @@
   let calib = null;
   let curSource = "—";
 
-  let netNames = [];
+  let netParticipants = []; // [{ id, name }]
   let netTs = 0;
 
   chrome.storage.local.get(CALIB_KEY, function (d) {
@@ -126,6 +126,43 @@
     return r.width > 4 && r.height > 4;
   }
 
+  function looksLikeUserId(s) {
+    if (typeof s !== "string") return false;
+    const t = s.trim();
+    if (t.length < 1 || t.length > 64) return false;
+    if (/^[0-9]+$/.test(t)) return true;
+    if (/^[0-9a-f]{8,}$/i.test(t)) return true;
+    if (/^[0-9a-f-]{8,}$/i.test(t)) return true;
+    return false;
+  }
+
+  const ID_ATTRS = [
+    "data-user-id", "data-userid", "data-uid", "data-id",
+    "data-member-id", "data-participant-id", "data-peer-id", "data-contact-id"
+  ];
+
+  function extractUserIdFromElement(el) {
+    let cur = el;
+    for (let d = 0; cur && d < 10; d++, cur = cur.parentElement) {
+      for (let i = 0; i < ID_ATTRS.length; i++) {
+        const v = cur.getAttribute && cur.getAttribute(ID_ATTRS[i]);
+        if (v && looksLikeUserId(v)) return v.trim();
+      }
+      if (cur.id && looksLikeUserId(cur.id)) return cur.id.trim();
+    }
+    return null;
+  }
+
+  function participantsMapFromNet(list) {
+    const map = new Map();
+    if (!Array.isArray(list)) return map;
+    list.forEach(function (p) {
+      if (!p || !p.id || !looksLikeUserId(String(p.id))) return;
+      map.set(String(p.id), { name: p.name || String(p.id) });
+    });
+    return map;
+  }
+
   function looksName(s) {
     if (typeof s !== "string") return false;
     const t = s.trim();
@@ -202,17 +239,18 @@
     let best = null, bestScore = 0;
     groups.forEach(function (els) {
       if (els.length < 2) return;
-      const names = [];
-      const seen = new Set();
+      const entries = new Map();
       els.forEach(function (el) {
+        const uid = extractUserIdFromElement(el);
+        if (!uid || entries.has(uid)) return;
         const nm = firstLine(el);
-        if (nm && looksName(nm) && !seen.has(nm)) { seen.add(nm); names.push(nm); }
+        entries.set(uid, { name: (nm && looksName(nm)) ? nm : uid });
       });
-      if (!names.length) return;
-      const score = names.length + names.length / els.length;
-      if (score > bestScore) { bestScore = score; best = names; }
+      if (!entries.size) return;
+      const score = entries.size + entries.size / els.length;
+      if (score > bestScore) { bestScore = score; best = entries; }
     });
-    return best && best.length ? new Set(best) : null;
+    return best && best.size ? best : null;
   }
 
   // -- calibration (optional override) --
@@ -257,7 +295,7 @@
     let nodes;
     try { nodes = document.querySelectorAll(calib.tileTag || "*"); } catch (_) { return null; }
     const overlayRoot = document.getElementById("maxct-overlay");
-    const present = new Set();
+    const present = new Map();
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
       if (overlayRoot && overlayRoot.contains(n)) continue;
@@ -265,6 +303,8 @@
         if (!calib.tileClasses.every(function (c) { return n.classList.contains(c); })) continue;
       }
       if (!isVisible(n)) continue;
+      const uid = extractUserIdFromElement(n);
+      if (!uid) continue;
       let target = n;
       if (calib.namePath && calib.namePath.length) {
         for (let j = 0; j < calib.namePath.length; j++) {
@@ -273,54 +313,61 @@
         }
       }
       const nm = firstLine(target || n);
-      if (nm) present.add(nm);
+      present.set(uid, { name: (nm && looksName(nm)) ? nm : uid });
     }
-    return present;
+    return present.size ? present : null;
   }
 
   // ---- scan / reconcile -------------------------------------------------
-  function netFresh() { return now() - netTs < NET_TTL_MS && netNames.length > 0; }
+  function netFresh() {
+    return now() - netTs < NET_TTL_MS && netParticipants.length > 0;
+  }
 
   function scanNow() {
     if (!running) return;
     let present = null, src = "—";
 
-    if (calib) {
-      const s = calibScan();
-      if (s && s.size) { present = s; src = "校准名单"; }
+    // 优先：网络数据（含真实 userId）
+    if (netFresh()) {
+      present = participantsMapFromNet(netParticipants);
+      if (present.size) src = "自动·网络·ID";
     }
-    if (!present) {
+    if (!present || !present.size) {
       const s = autoDomScan();
-      if (s && s.size) { present = s; src = "自动·页面"; }
+      if (s && s.size) { present = s; src = "自动·页面·ID"; }
     }
-    if (!present && netFresh()) {
-      present = new Set(netNames);
-      src = "自动·网络";
+    if (!present || !present.size) {
+      if (calib) {
+        const s = calibScan();
+        if (s && s.size) { present = s; src = "校准·ID"; }
+      }
     }
 
-    if (present) { reconcile(present); curSource = src; }
-    else curSource = "未识别到参会者";
+    if (present && present.size) { reconcile(present); curSource = src; }
+    else curSource = "未识别到用户 ID";
 
     ui.renderPeople(livePeople(), now() - session.start, curSource);
   }
 
   function reconcile(present) {
     const t = now();
-    present.forEach(function (name) {
-      let p = session.people[name];
+    present.forEach(function (info, userId) {
+      let p = session.people[userId];
       if (!p) {
-        p = session.people[name] = {
+        p = session.people[userId] = {
+          userId: userId, name: info.name || userId,
           firstSeen: t, lastSeen: t, totalMs: 0,
           online: true, curJoin: t, miss: 0, intervals: []
         };
       } else {
+        if (info.name && info.name !== userId) p.name = info.name;
         if (!p.online) { p.online = true; p.curJoin = t; }
         p.miss = 0; p.lastSeen = t;
       }
     });
-    Object.keys(session.people).forEach(function (name) {
-      const p = session.people[name];
-      if (p.online && !present.has(name)) {
+    Object.keys(session.people).forEach(function (userId) {
+      const p = session.people[userId];
+      if (p.online && !present.has(userId)) {
         p.miss++;
         if (p.miss >= MISS_SCANS) {
           p.online = false;
@@ -336,11 +383,14 @@
   function livePeople() {
     if (!session) return [];
     const t = now();
-    return Object.keys(session.people).map(function (name) {
-      const p = session.people[name];
+    return Object.keys(session.people).map(function (userId) {
+      const p = session.people[userId];
       let ms = p.totalMs;
       if (p.online && p.curJoin) ms += t - p.curJoin;
-      return { name: name, ms: ms, online: p.online };
+      return {
+        userId: userId, name: p.name || userId,
+        ms: ms, online: p.online
+      };
     }).sort(function (a, b) {
       if (a.online !== b.online) return a.online ? -1 : 1;
       return b.ms - a.ms;
@@ -357,8 +407,8 @@
   // ---- persistence ------------------------------------------------------
   function serialize(finalize) {
     const t = now();
-    const people = Object.keys(session.people).map(function (name) {
-      const p = session.people[name];
+    const people = Object.keys(session.people).map(function (userId) {
+      const p = session.people[userId];
       let total = p.totalMs;
       const intervals = p.intervals.slice();
       let online = p.online;
@@ -367,7 +417,8 @@
         if (finalize) { intervals.push({ join: p.curJoin, leave: t }); online = false; }
       }
       return {
-        name: name, totalMs: total, online: online && !finalize,
+        userId: userId, name: p.name || userId, totalMs: total,
+        online: online && !finalize,
         firstSeen: p.firstSeen, lastSeen: p.lastSeen, intervals: intervals
       };
     });
@@ -429,8 +480,16 @@
     if (!d || d.__maxct !== true || d.source !== TAG) return;
     if (d.type === "pc-count") onCount(d.count | 0);
     else if (d.type === "net-participants") {
-      netNames = Array.isArray(d.names) ? d.names : [];
+      if (Array.isArray(d.participants)) {
+        netParticipants = d.participants;
+      } else if (Array.isArray(d.names)) {
+        // 兼容旧 inject 格式
+        netParticipants = d.names.map(function (n) { return { id: n, name: n }; });
+      } else {
+        netParticipants = [];
+      }
       netTs = now();
+      if (running) scanNow();
     }
   });
 
@@ -465,7 +524,7 @@
       saveCalib();
       stop();
       const s = calibScan();
-      ui.flashCalibResult(s ? Array.from(s) : []);
+      ui.flashCalibResult(s ? Array.from(s.keys()) : []);
       if (running) scanNow();
     }
     function clear() {
@@ -550,12 +609,12 @@
       if (!root) return;
       calibBtn.textContent = on ? "点一位参会者…(Esc)" : "手动校准";
       calibBtn.classList.toggle("maxct-warn", on);
-      setTip(on ? "自动识别不准时才需要：点一下任意一位参会者的名字。右键此按钮可清除校准。" : "");
+      setTip(on ? "自动识别不准时才需要：点一下带 userId 的参会者元素。右键此按钮可清除校准。" : "");
     }
     function flashCalibResult(sample) {
       const n = sample.length;
-      setTip(n ? ("已按校准识别 " + n + " 位：" + sample.slice(0, 4).join("、") + (n > 4 ? " 等" : ""))
-               : "未识别到，换个更靠近名字的位置再试。");
+      setTip(n ? ("已按 ID 识别 " + n + " 位：" + sample.slice(0, 4).join("、") + (n > 4 ? " 等" : ""))
+               : "未识别到 userId，请点更靠近带 data-user-id 的元素。");
       setTimeout(function () { if (root) setTip(""); }, 6000);
     }
     function setTip(text) {
@@ -589,7 +648,7 @@
       if (!people.length) {
         const e = document.createElement("div");
         e.className = "maxct-empty";
-        e.textContent = running ? "正在识别参会者…" : "暂无参会者";
+        e.textContent = running ? "正在识别用户 ID…" : "暂无记录";
         listEl.appendChild(e);
         return;
       }
@@ -598,7 +657,11 @@
         row.className = "maxct-row" + (p.online ? " on" : "");
         const dot = document.createElement("span"); dot.className = "maxct-rdot";
         const nm = document.createElement("span"); nm.className = "maxct-rname";
-        nm.textContent = p.name; nm.title = p.name;
+        const label = p.name && p.name !== p.userId
+          ? p.userId + " · " + p.name
+          : p.userId;
+        nm.textContent = label;
+        nm.title = "用户ID: " + p.userId + (p.name ? "\n姓名: " + p.name : "");
         const tm = document.createElement("span"); tm.className = "maxct-rtime";
         tm.textContent = fmt(p.ms);
         row.appendChild(dot); row.appendChild(nm); row.appendChild(tm);

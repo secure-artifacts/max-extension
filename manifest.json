@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MAX 通话计时器",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "在 MAX 网页版自动记录每个参会者的上线/下线时间和在线时长，支持悬浮窗、历史记录与导出。",
   "permissions": ["storage"],
   "host_permissions": [

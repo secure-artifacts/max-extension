@@ -52,7 +52,7 @@
         const e = document.createElement("div");
         e.className = "empty";
         e.innerHTML =
-          "暂无记录。<br />打开 MAX 网页版加入通话后，点击悬浮窗的「校准名单」并点一位参会者，即可自动记录每个人的在线时长。";
+          "暂无记录。<br />打开 MAX 网页版加入通话后，插件会从通话网络数据读取<strong>用户 ID</strong>并记录每个人的在线时长。";
         box.appendChild(e);
         return;
       }
@@ -131,8 +131,10 @@
         dot.className = "pdot";
         const nm = document.createElement("span");
         nm.className = "pname";
-        nm.textContent = p.name;
-        nm.title = p.name;
+        const uid = p.userId || p.name || "—";
+        const label = p.name && p.name !== uid ? uid + " · " + p.name : uid;
+        nm.textContent = label;
+        nm.title = "用户ID: " + uid + (p.name ? "\n姓名: " + p.name : "");
         const min = document.createElement("span");
         min.className = "pmin";
         min.textContent = fmtMin(p.totalMs);
@@ -188,14 +190,17 @@
 
   el("exportBtn").addEventListener("click", function () {
     if (!cache.length) { alert("没有可导出的记录。"); return; }
-    const rows = [["通话开始", "通话结束", "参会者", "在线时长(分钟)", "在线时长", "首次出现", "最后出现"]];
+    const rows = [["通话开始", "通话结束", "用户ID", "姓名", "在线时长(分钟)", "在线时长", "首次出现", "最后出现"]];
     cache.forEach(function (s) {
       const sStart = new Date(s.start).toLocaleString();
       const sEnd = s.end ? new Date(s.end).toLocaleString() : "进行中";
       (s.people || []).forEach(function (p) {
+        const uid = p.userId || p.name || "";
+        const name = (p.name && p.name !== uid) ? p.name : "";
         rows.push([
           sStart, sEnd,
-          (p.name || "").replace(/[,\n]/g, " "),
+          String(uid).replace(/[,\n]/g, " "),
+          String(name).replace(/[,\n]/g, " "),
           (p.totalMs / 60000).toFixed(1),
           fmt(p.totalMs),
           p.firstSeen ? new Date(p.firstSeen).toLocaleTimeString() : "",

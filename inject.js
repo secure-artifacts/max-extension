@@ -74,7 +74,7 @@
   const NAME_KEYS = ["displayname", "display_name", "fullname", "full_name",
     "name", "firstname", "first_name", "title", "nick", "nickname", "contactname"];
   const ID_KEYS = ["id", "userid", "user_id", "uid", "peerid", "peer_id",
-    "memberid", "member_id", "accountid", "account_id", "contactid"];
+    "memberid", "member_id", "accountid", "account_id", "contactid", "contact_id"];
   const ROSTER_KEY = /(participant|members?|roster|attendee|peers?|callusers?|conference|presence)/i;
   const TYPE_KEYS = ["event", "type", "op", "opcode", "action", "cmd",
     "command", "method", "kind", "eventtype", "event_type", "state"];
@@ -84,6 +84,24 @@
   // id -> { name, ts }
   const registry = new Map();
   let dirty = false;
+
+  function looksLikeUserId(s) {
+    if (typeof s !== "string") return false;
+    const t = s.trim();
+    if (t.length < 1 || t.length > 64) return false;
+    if (/^[0-9]+$/.test(t)) return true;
+    if (/^[0-9a-f]{8,}$/i.test(t)) return true;
+    if (/^[0-9a-f-]{8,}$/i.test(t)) return true;
+    return false;
+  }
+
+  function extractId(low) {
+    for (const k of ID_KEYS) {
+      const v = low[k];
+      if (v != null && looksLikeUserId(String(v))) return String(v).trim();
+    }
+    return null;
+  }
 
   function looksLikeName(s) {
     if (typeof s !== "string") return false;
@@ -102,6 +120,9 @@
     for (const k in o) {
       try { low[k.toLowerCase()] = o[k]; } catch (_) {}
     }
+    const id = extractId(low);
+    if (!id) return null;
+
     let name = null;
     const fn = low.firstname || low.first_name;
     const ln = low.lastname || low.last_name;
@@ -113,15 +134,7 @@
         if (looksLikeName(low[k])) { name = String(low[k]).trim(); break; }
       }
     }
-    if (!name) return null;
-    let id = null;
-    for (const k of ID_KEYS) {
-      const v = low[k];
-      if (v != null && (typeof v === "string" || typeof v === "number")) {
-        id = String(v); break;
-      }
-    }
-    return { id: id || name, name: name.slice(0, 60) };
+    return { id: id, name: (name || id).slice(0, 60) };
   }
 
   function eventType(o) {
@@ -230,9 +243,11 @@
   setInterval(function () {
     if (!dirty) return;
     dirty = false;
-    const names = [];
-    registry.forEach(function (v) { if (v.name) names.push(v.name); });
-    post("net-participants", { names: names });
+    const participants = [];
+    registry.forEach(function (v, id) {
+      participants.push({ id: id, name: v.name || id });
+    });
+    post("net-participants", { participants: participants });
   }, 1000);
 
   // ---- WebSocket hook ----
