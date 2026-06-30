@@ -22,8 +22,8 @@ jobs:
       - name: Package Extension
         run: |
           mkdir -p dist
-          cp manifest.json inject.js content.js overlay.css background.js \
-             popup.html popup.css popup.js README.md dist/
+          cp manifest.json inject.js content.js background.js \
+             tab.html tab.css tab.js README.md dist/
           cp -r icons dist/
           cd dist
           zip -r ../max-extension-${{ github.ref_name }}.zip .

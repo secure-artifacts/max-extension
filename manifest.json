@@ -1,16 +1,15 @@
 {
   "manifest_version": 3,
   "name": "MAX 出勤记录器",
-  "version": "1.2.0",
-  "description": "在 MAX 网页版按用户 ID 自动记录参会者上线/下线与在线时长，支持悬浮窗、历史记录与导出。",
-  "permissions": ["storage"],
+  "version": "2.0.0",
+  "description": "在 MAX 网页版按用户 ID 静默记录参会者在线时长，点击扩展图标在新标签页查看每人上线时间（含自己）。",
+  "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://max.ru/*",
     "https://*.max.ru/*",
     "https://web.max.ru/*"
   ],
   "action": {
-    "default_popup": "popup.html",
     "default_title": "MAX 出勤记录器",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -33,8 +32,18 @@
         "https://*.max.ru/*",
         "https://web.max.ru/*"
       ],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://max.ru/*",
+        "https://*.max.ru/*",
+        "https://web.max.ru/*"
+      ],
       "js": ["content.js"],
-      "css": ["overlay.css"],
       "run_at": "document_start",
       "all_frames": true
     }

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="tab.css" />
+    <title>MAX 出勤记录</title>
+  </head>
+  <body>
+    <div class="page">
+      <header class="hdr">
+        <div class="hdr-main">
+          <div class="hdr-title">MAX 通话出勤</div>
+          <div class="hdr-sub" id="statusText">未在通话中</div>
+        </div>
+        <div class="hdr-time" id="callTime">—</div>
+      </header>
+
+      <main class="list" id="peopleList">
+        <div class="empty" id="emptyHint">
+          打开 MAX 网页版加入通话后，点击扩展图标即可在此查看每人上线时长。
+        </div>
+      </main>
+
+      <footer class="ftr">
+        <button type="button" class="btn-clear" id="clearAllBtn">清空全部记录</button>
+      </footer>
+    </div>
+
+    <script src="tab.js"></script>
+  </body>
+</html>
